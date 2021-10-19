@@ -1,0 +1,159 @@
+org: drewito
+app: serverless-test
+service: serverless-image-processing
+
+frameworkVersion: "=>2.0.0"
+
+plugins:
+  - serverless-python-requirements
+package:
+  exclude:
+    - node_modules/**
+    - .idea/**
+    - .requirements/**
+    - env/**
+    - README.md
+    - package.json
+    - package-lock.json
+    - requirements.txt
+
+# DRY constants: define all compound/generated names in one place
+# Override args are: .. defaults:
+# --app_acroym          signed-uploader
+# --s3_bucket           self:custom.app_acronym
+# --s3_key_base         self:custom.stage
+# --region              us-east-1
+# --stage               test
+# --deletion_policy     delete
+custom:
+  app_acronym: serverless-image-processing
+  default_stage: test
+  stage: ${opt:stage, self:custom.default_stage}
+  stack_name: ${self:custom.app_acronym}-${self:custom.stage}
+  region: ${opt:region, self:provider.region}
+  deletion_policy: Delete
+  dynamodb_table: ${self:custom.stack_name}
+  dynamodb_arn: arn:aws:dynamodb:${self:custom.region}:*:table/${self:custom.dynamodb_table}
+  dynamodb_host: https://dynamodb.${self:custom.region}.amazonaws.com
+  # Default to using app_acronym as bucket name
+  s3_bucket: ${self:custom.stack_name}-${opt:s3_bucket, self:custom.app_acronym}
+  # default to using ${stage} as key base path, keeps stages from namespace collisions
+  s3_key_base: ${opt:s3_key_base, self:custom.stage}
+  s3_bucket_arn: arn:aws:s3:::${self:custom.s3_bucket}
+  s3_role_resource: ${self:custom.s3_bucket_arn}/${self:custom.s3_key_base}/*
+  # Put this here rather than in code (presigned URL TTL)
+  url_default_ttl: 300
+
+provider:
+  name: aws
+  runtime: python3.8
+  region: us-east-1
+  lambdaHashingVersion: '20201221'
+  environment:
+    DYNAMODB_TABLE: ${self:custom.dynamodb_table}
+    DYNAMODB_HOST: ${self:custom.dynamodb_host}
+    REGION: ${self:custom.region}
+    S3_BUCKET: ${self:custom.s3_bucket}
+    S3_KEY_BASE: ${self:custom.s3_key_base}
+    URL_DEFAULT_TTL: ${self:custom.url_default_ttl}
+  # This should be scoped down to each individual lambda
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:DescribeTable
+        - dynamodb:DescribeStream
+        - dynamodb:GetRecords
+        - dynamodb:GetShardIterator
+        - dynamodb:ListStreams
+      Resource: ${self:custom.dynamodb_arn}
+    - Effect: Allow
+      Action:
+        - rekognition:DetectLabels
+      Resource: '*'
+    - Effect: Allow
+      Action:
+        - s3:*
+      Resource: ${self:custom.s3_role_resource}
+
+functions:
+  create:
+    name: ${self:custom.stack_name}-create
+    description: Generate a presigned URL for PUT upload
+    handler: blob/create.create
+    events:
+      - http:
+          path: blobs
+          method: post
+          cors: true
+          integration: lambda
+
+  bucket:
+    handler: blob/bucket.event
+    name: ${self:custom.stack_name}-bucket
+    description: Triggered by s3 create events to manage call aws rekognition and update item
+    events:
+      - s3:
+          bucket: ${self:custom.s3_bucket}
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: ${self:custom.s3_key_base}
+
+  stream:
+    handler: blob/stream.event
+    dependsOn: 
+      - blobDynamoDbTable
+    name: ${self:custom.stack_name}-stream
+    description: Triggered by ddb stream event to callback user if possible
+    events:
+      - stream:
+          type: dynamodb
+          arn: !GetAtt blobDynamoDbTable.StreamArn
+          batchSize: 1
+          startingPosition: LATEST
+          maximumRetryAttempts: 5
+          bisectBatchOnFunctionError: true
+          enabled: true
+
+  get:
+    handler: blob/get.get
+    name: ${self:custom.stack_name}-get
+    description: Get a presigned download url for <asset-id>
+    events:
+      - http:
+          path: blobs/{blob_id}
+          method: get
+          cors: true
+          integration: lambda
+          request:
+            paths:
+              asset_id: true
+              parameters:
+                 paths:
+                   timeout: true
+
+resources:
+  Resources:
+
+# Comment assetDynamoDbTable if using existing table
+    blobDynamoDbTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: ${self:custom.deletion_policy}
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          -
+            AttributeName: blob_id
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: blob_id
+            KeyType: HASH
+        TableName: ${self:custom.dynamodb_table}
+        StreamSpecification:
+          StreamViewType: NEW_IMAGE
