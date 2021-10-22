@@ -2,7 +2,7 @@ import botocore
 import boto3
 import http.client as httplib
 import os
-from pynamodb.exceptions import DoesNotExist, DeleteError, UpdateError
+from pynamodb.exceptions import DoesNotExist, UpdateError
 
 from blob.blob_model import BlobModel, State
 from log_cfg import logger
@@ -54,9 +54,19 @@ def event(event, context):
     # }
 
     logger.debug('event: {}'.format(event))
-    event_name = event['Records'][0]['eventName']
-    bucket = event['Records'][0]['s3']['bucket']['name']
-    key = event['Records'][0]['s3']['object']['key']
+    for record in event['Records']:
+        processRecord(record)
+
+    return {'statusCode': httplib.ACCEPTED}
+
+def processRecord(record):
+    """
+    This function processes each record in the event stream and 
+    calls rekognition to label the image
+    """
+    event_name = record['eventName']
+    bucket = record['s3']['bucket']['name']
+    key = record['s3']['object']['key']
     blob_id = key.replace('{}/'.format(os.environ['S3_KEY_BASE']), '')
 
     if 'ObjectCreated:Put' == event_name:
@@ -66,30 +76,14 @@ def event(event, context):
             labels = getImageLabels(bucket, key)
             blob.update_state_to_processed_and_add_labels(labels)
         except UpdateError:
-            return {
-                'statusCode': httplib.BAD_REQUEST,
-                'body': {
-                    'error_message': 'Unable to update BLOB'
-                    }
-            }
-        except botocore.exceptions.ClientError as e:
-            logger.error(e)
-            blob.set_rekognition_error(str(e))
-            return {
-                'statusCode': httplib.BAD_REQUEST,
-                'body': {
-                    'error_message': 'Unable to process BLOB'
-                    }
-            }
-        except DoesNotExist:
-            return {
-                'statusCode': httplib.NOT_FOUND,
-                'body': {
-                    'error_message': 'BLOB {} not found'.format(blob_id)
-                }
-            }
+            logger.exception('Unable to update blob')
 
-    return {'statusCode': httplib.ACCEPTED}
+        except botocore.exceptions.ClientError as e:
+            logger.exception('Client provided a bad image')
+            blob.set_rekognition_error_and_mark_processed(str(e))
+
+        except DoesNotExist:
+            logger.exception('Blob does not exist')
 
 def getImageLabels(bucket, key):
     """

@@ -85,7 +85,7 @@ class BlobModel(Model):
         """
         Mark asset as having been processed after rekognition has run and change labels
         """
-        if self.state is not State.UPLOADED.name:
+        if self.state != State.UPLOADED.name:
             raise AssertionError('State: \"{}\" must be {}'.format(self.state, State.UPLOADED.name))
         self.state = State.PROCESSED.name
         logger.debug('mark asset processed: {}'.format(self.blob_id))
@@ -104,15 +104,16 @@ class BlobModel(Model):
         """
         Mark asset as having been received via the s3 objectCreated:Put event
         """
-        if self.state is not State.PROCESSED.name:
+        if self.state != State.PROCESSED.name:
             raise AssertionError('State: \"{}\" must be one of {}'.format(self.state, State.PROCESSED.name))
         self.state = State.PROCESSED_WITH_CALLBACK.name
         logger.debug('mark asset processed and callback complete: {}'.format(self.blob_id))
         self.save()
 
-    def set_rekognition_error(self, error):
+    def set_rekognition_error_and_mark_processed(self, error):
         self.rekognition_error = error
         logger.debug('rekognition returned with errors: {}'.format(self.rekognition_error))
+        self.state = State.PROCESSED.name
         self.save()
 
     def set_labels(self, labels):
