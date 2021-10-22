@@ -122,7 +122,7 @@ def processRecord(record):
                 data = json.dumps({'blobId': blob_id, 'rekognition_error': blob.rekognition_error})
             else:
                 data = json.dumps({'blobId': blob_id, 'labels': blob.labels})
-            r = requests.post(callback_url, data=data)
+            requests.post(callback_url, data=data)
             blob.mark_processed_with_callback()
         except DoesNotExist:
             logger.exception('Trying to send callback for a blob that does not exist')

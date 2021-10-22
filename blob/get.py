@@ -68,15 +68,22 @@ def get(event, context):
                     'errorMessage': 'Image has not been uploaded to be processed. Please upload BLOB {} to s3'.format(blob_id)
                 }
             }
+        if blob.state == State.UPLOADED.name:
+            return {
+                'statusCode': httplib.PRECONDITION_REQUIRED,
+                'body': {
+                    'errorMessage': 'Image has not finished processing. Please retry your request again shortly'
+                }
+            }
         if blob.rekognition_error:
             return {
                 'statusCode': httplib.PRECONDITION_FAILED,
                 'body': {
-                    'errorMessage': 'Image processing failed due to client error: {}'.format(blob.rekognition_errors)
+                    'errorMessage': 'Image processing failed due to client error: {}'.format(blob.rekognition_error)
                 }
             } 
         labels = []
-        if blob.state == State.PROCESSED.name:
+        if blob.state == State.PROCESSED.name or blob.state == State.PROCESSED_WITH_CALLBACK.name:
             labels = blob.labels
 
     except DoesNotExist:
