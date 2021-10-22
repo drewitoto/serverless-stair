@@ -1,0 +1,108 @@
+openapi: "3.0.0"
+info:
+  version: 1.0.0
+  title: Swagger Petstore
+  license:
+    name: MIT
+host: trknmunrdl.execute-api.us-east-1.amazonaws.com
+basePath: /dev
+schemes:
+  - https
+consumes:
+  - application/json
+produces:
+  - application/json
+paths:
+  /blobs:
+    post:
+      summary: Create a blob
+      operationId: createBlob
+      tags:
+        - blobs
+      parameters:
+        - name: blobId
+          in: path
+          required: true
+          description: The id of the pet to retrieve
+          schema:
+            type: string  
+        - name: callback_url
+          in: body
+          required: false
+          description: A url for a callback to happen
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The id of the blob created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  upload_url: 
+                    type: string
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /blobs/{blobId}:
+    get:
+      summary: Info for a specific blob and labels
+      operationId: getBlobById
+      tags:
+        - blobs
+      parameters:
+        - name: blobId
+          in: path
+          required: true
+          description: The id of the blob to retrieve
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Expected response to a valid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Blob"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  schemas:
+    Blob:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          format: uuid
+        labels:
+          type: array
+          items:
+            type: string
+    Error:
+      type: object
+      required:
+        - statusCode
+        - body
+      properties:
+        statusCode:
+          type: integer
+          format: int32
+        body:
+          type: object
+          required:
+            - errorMessage
+          properties:
+            errorMessage:
+              type: string

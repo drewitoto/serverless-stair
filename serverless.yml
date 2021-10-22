@@ -123,7 +123,7 @@ functions:
   get:
     handler: blob/get.get
     name: ${self:custom.stack_name}-get
-    description: Get a presigned download url for <asset-id>
+    description: Get a presigned download url for <blob-id>
     events:
       - http:
           path: blobs/{blob_id}

@@ -65,14 +65,14 @@ def get(event, context):
             return {
                 'statusCode': httplib.PRECONDITION_REQUIRED,
                 'body': {
-                    'error_message': 'Image has not been uploaded to be processed. Please upload BLOB {} to s3'.format(blob_id)
+                    'errorMessage': 'Image has not been uploaded to be processed. Please upload BLOB {} to s3'.format(blob_id)
                 }
             }
         if blob.rekognition_error:
             return {
                 'statusCode': httplib.PRECONDITION_FAILED,
                 'body': {
-                    'error_message': 'Image processing failed due to client error: {}'.format(blob.rekognition_errors)
+                    'errorMessage': 'Image processing failed due to client error: {}'.format(blob.rekognition_errors)
                 }
             } 
         labels = []
@@ -83,12 +83,12 @@ def get(event, context):
         return {
             'statusCode': httplib.NOT_FOUND,
             'body': {
-                'error_message': 'BLOB {} not found'.format(blob_id)
+                'errorMessage': 'BLOB {} not found'.format(blob_id)
             }
         }
 
     return {
-        "statusCode": httplib.ACCEPTED,
+        "statusCode": httplib.OK,
         "body": {
             'labels': labels
         }

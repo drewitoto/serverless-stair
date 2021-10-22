@@ -62,7 +62,7 @@ def create(event, context):
             return {
                 'statusCode': httplib.BAD_REQUEST,
                 'body': {
-                    'error_message': 'Callback url passed in is not a valid url'
+                    'errorMessage': 'Callback url passed in is not a valid url'
                     }
             }
     blob.generate_new_item(callback_url)

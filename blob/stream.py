@@ -106,13 +106,13 @@ def event(event, context):
             return {
                 'statusCode': httplib.BAD_REQUEST,
                 'body': {
-                    'error_message': 'Unable to update ASSET'}
+                    'errorMessage': 'Unable to update ASSET'}
             }
         except DoesNotExist:
             return {
                 'statusCode': httplib.NOT_FOUND,
                 'body': {
-                    'error_message': 'BLOB {} not found'.format(blob_id)
+                    'errorMessage': 'BLOB {} not found'.format(blob_id)
                 }
             }
 
